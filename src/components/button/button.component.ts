@@ -6,6 +6,7 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import { LocalizeController } from '../../utilities/localize.js';
 import { property, query, state } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlIcon from '../icon/icon.component.js';
 import SlSpinner from '../spinner/spinner.component.js';
@@ -38,7 +39,7 @@ import type { ShoelaceFormControl } from '../../internal/shoelace-element.js';
  * @csspart spinner - The spinner that shows when the button is in the loading state.
  */
 export default class SlButton extends ShoelaceElement implements ShoelaceFormControl {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
   static dependencies = {
     'sl-icon': SlIcon,
     'sl-spinner': SlSpinner
@@ -292,7 +293,7 @@ export default class SlButton extends ShoelaceElement implements ShoelaceFormCon
         title=${this.title /* An empty title prevents browser validation tooltips from appearing on hover */}
         name=${ifDefined(isLink ? undefined : this.name)}
         value=${ifDefined(isLink ? undefined : this.value)}
-        href=${ifDefined(isLink ? this.href : undefined)}
+        href=${ifDefined(isLink && !this.disabled ? this.href : undefined)}
         target=${ifDefined(isLink ? this.target : undefined)}
         download=${ifDefined(isLink ? this.download : undefined)}
         rel=${ifDefined(isLink ? this.rel : undefined)}

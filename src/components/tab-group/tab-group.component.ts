@@ -1,11 +1,14 @@
+import '../../internal/scrollend-polyfill.js';
 import { classMap } from 'lit/directives/class-map.js';
+import { eventOptions, property, query, state } from 'lit/decorators.js';
 import { html } from 'lit';
 import { LocalizeController } from '../../utilities/localize.js';
-import { property, query, state } from 'lit/decorators.js';
 import { scrollIntoView } from '../../internal/scroll.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlIconButton from '../icon-button/icon-button.component.js';
+import SlResizeObserver from '../resize-observer/resize-observer.component.js';
 import styles from './tab-group.styles.js';
 import type { CSSResultGroup } from 'lit';
 import type SlTab from '../tab/tab.js';
@@ -40,16 +43,16 @@ import type SlTabPanel from '../tab-panel/tab-panel.js';
  * @cssproperty --track-width - The width of the indicator's track (the line that separates tabs from panels).
  */
 export default class SlTabGroup extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
-  static dependencies = { 'sl-icon-button': SlIconButton };
-
-  private readonly localize = new LocalizeController(this);
+  static styles: CSSResultGroup = [componentStyles, styles];
+  static dependencies = { 'sl-icon-button': SlIconButton, 'sl-resize-observer': SlResizeObserver };
 
   private activeTab?: SlTab;
   private mutationObserver: MutationObserver;
   private resizeObserver: ResizeObserver;
   private tabs: SlTab[] = [];
+  private focusableTabs: SlTab[] = [];
   private panels: SlTabPanel[] = [];
+  private readonly localize = new LocalizeController(this);
 
   @query('.tab-group') tabGroup: HTMLElement;
   @query('.tab-group__body') body: HTMLSlotElement;
@@ -57,6 +60,9 @@ export default class SlTabGroup extends ShoelaceElement {
   @query('.tab-group__indicator') indicator: HTMLElement;
 
   @state() private hasScrollControls = false;
+
+  @state() private shouldHideScrollStartButton = false;
+  @state() private shouldHideScrollEndButton = false;
 
   /** The placement of the tabs. */
   @property() placement: 'top' | 'bottom' | 'start' | 'end' = 'top';
@@ -69,6 +75,9 @@ export default class SlTabGroup extends ShoelaceElement {
 
   /** Disables the scroll arrows that appear when tabs overflow. */
   @property({ attribute: 'no-scroll-controls', type: Boolean }) noScrollControls = false;
+
+  /** Prevent scroll buttons from being hidden when inactive. */
+  @property({ attribute: 'fixed-scroll-controls', type: Boolean }) fixedScrollControls = false;
 
   connectedCallback() {
     const whenAllDefined = Promise.all([
@@ -92,6 +101,16 @@ export default class SlTabGroup extends ShoelaceElement {
       // Sync tabs when disabled states change
       if (mutations.some(m => m.attributeName === 'disabled')) {
         this.syncTabsAndPanels();
+        // sync tabs when active state on tab changes
+      } else if (mutations.some(m => m.attributeName === 'active')) {
+        const tabs = mutations
+          .filter(m => m.attributeName === 'active' && (m.target as HTMLElement).tagName.toLowerCase() === 'sl-tab')
+          .map(m => m.target as SlTab);
+        const newActiveTab = tabs.find(tab => tab.active);
+
+        if (newActiveTab) {
+          this.setActiveTab(newActiveTab);
+        }
       }
     });
 
@@ -118,18 +137,17 @@ export default class SlTabGroup extends ShoelaceElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.mutationObserver.disconnect();
-    this.resizeObserver.unobserve(this.nav);
+    this.mutationObserver?.disconnect();
+
+    if (this.nav) {
+      this.resizeObserver?.unobserve(this.nav);
+    }
   }
 
-  private getAllTabs(options: { includeDisabled: boolean } = { includeDisabled: true }) {
+  private getAllTabs() {
     const slot = this.shadowRoot!.querySelector<HTMLSlotElement>('slot[name="nav"]')!;
 
-    return [...(slot.assignedElements() as SlTab[])].filter(el => {
-      return options.includeDisabled
-        ? el.tagName.toLowerCase() === 'sl-tab'
-        : el.tagName.toLowerCase() === 'sl-tab' && !el.disabled;
-    });
+    return slot.assignedElements() as SlTab[];
   }
 
   private getAllPanels() {
@@ -177,42 +195,44 @@ export default class SlTabGroup extends ShoelaceElement {
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
       const activeEl = this.tabs.find(t => t.matches(':focus'));
       const isRtl = this.localize.dir() === 'rtl';
+      let nextTab: null | SlTab = null;
 
       if (activeEl?.tagName.toLowerCase() === 'sl-tab') {
-        let index = this.tabs.indexOf(activeEl);
-
         if (event.key === 'Home') {
-          index = 0;
+          nextTab = this.focusableTabs[0];
         } else if (event.key === 'End') {
-          index = this.tabs.length - 1;
+          nextTab = this.focusableTabs[this.focusableTabs.length - 1];
         } else if (
           (['top', 'bottom'].includes(this.placement) && event.key === (isRtl ? 'ArrowRight' : 'ArrowLeft')) ||
           (['start', 'end'].includes(this.placement) && event.key === 'ArrowUp')
         ) {
-          index--;
+          const currentIndex = this.tabs.findIndex(el => el === activeEl);
+          nextTab = this.findNextFocusableTab(currentIndex, 'backward');
         } else if (
           (['top', 'bottom'].includes(this.placement) && event.key === (isRtl ? 'ArrowLeft' : 'ArrowRight')) ||
           (['start', 'end'].includes(this.placement) && event.key === 'ArrowDown')
         ) {
-          index++;
+          const currentIndex = this.tabs.findIndex(el => el === activeEl);
+          nextTab = this.findNextFocusableTab(currentIndex, 'forward');
         }
 
-        if (index < 0) {
-          index = this.tabs.length - 1;
+        if (!nextTab) {
+          return;
         }
 
-        if (index > this.tabs.length - 1) {
-          index = 0;
-        }
-
-        this.tabs[index].focus({ preventScroll: true });
+        nextTab.tabIndex = 0;
+        nextTab.focus({ preventScroll: true });
 
         if (this.activation === 'auto') {
-          this.setActiveTab(this.tabs[index], { scrollBehavior: 'smooth' });
+          this.setActiveTab(nextTab, { scrollBehavior: 'smooth' });
+        } else {
+          this.tabs.forEach(tabEl => {
+            tabEl.tabIndex = tabEl === nextTab ? 0 : -1;
+          });
         }
 
         if (['top', 'bottom'].includes(this.placement)) {
-          scrollIntoView(this.tabs[index], this.nav, 'horizontal');
+          scrollIntoView(nextTab, this.nav, 'horizontal');
         }
 
         event.preventDefault();
@@ -252,7 +272,10 @@ export default class SlTabGroup extends ShoelaceElement {
       this.activeTab = tab;
 
       // Sync active tab and panel
-      this.tabs.forEach(el => (el.active = el === this.activeTab));
+      this.tabs.forEach(el => {
+        el.active = el === this.activeTab;
+        el.tabIndex = el === this.activeTab ? 0 : -1;
+      });
       this.panels.forEach(el => (el.active = el.name === this.activeTab?.panel));
       this.syncIndicator();
 
@@ -324,7 +347,9 @@ export default class SlTabGroup extends ShoelaceElement {
 
   // This stores tabs and panels so we can refer to a cache instead of calling querySelectorAll() multiple times.
   private syncTabsAndPanels() {
-    this.tabs = this.getAllTabs({ includeDisabled: false });
+    this.tabs = this.getAllTabs();
+    this.focusableTabs = this.tabs.filter(el => !el.disabled);
+
     this.panels = this.getAllPanels();
     this.syncIndicator();
 
@@ -332,14 +357,71 @@ export default class SlTabGroup extends ShoelaceElement {
     this.updateComplete.then(() => this.updateScrollControls());
   }
 
+  private findNextFocusableTab(currentIndex: number, direction: 'forward' | 'backward') {
+    let nextTab = null;
+    const iterator = direction === 'forward' ? 1 : -1;
+    let nextIndex = currentIndex + iterator;
+
+    while (currentIndex < this.tabs.length) {
+      nextTab = this.tabs[nextIndex] || null;
+
+      if (nextTab === null) {
+        // This is where wrapping happens. If we're moving forward and get to the end, then we jump to the beginning. If we're moving backward and get to the start, then we jump to the end.
+        if (direction === 'forward') {
+          nextTab = this.focusableTabs[0];
+        } else {
+          nextTab = this.focusableTabs[this.focusableTabs.length - 1];
+        }
+        break;
+      }
+
+      if (!nextTab.disabled) {
+        break;
+      }
+
+      nextIndex += iterator;
+    }
+
+    return nextTab;
+  }
+
+  /**
+   * The reality of the browser means that we can't expect the scroll position to be exactly what we want it to be, so
+   * we add one pixel of wiggle room to our calculations.
+   */
+  private scrollOffset = 1;
+
+  @eventOptions({ passive: true })
+  private updateScrollButtons() {
+    if (this.hasScrollControls && !this.fixedScrollControls) {
+      this.shouldHideScrollStartButton = this.scrollFromStart() <= this.scrollOffset;
+      this.shouldHideScrollEndButton = this.isScrolledToEnd();
+    }
+  }
+
+  private isScrolledToEnd() {
+    return this.scrollFromStart() + this.nav.clientWidth >= this.nav.scrollWidth - this.scrollOffset;
+  }
+
+  private scrollFromStart() {
+    return this.localize.dir() === 'rtl' ? -this.nav.scrollLeft : this.nav.scrollLeft;
+  }
+
   @watch('noScrollControls', { waitUntilFirstUpdate: true })
   updateScrollControls() {
     if (this.noScrollControls) {
       this.hasScrollControls = false;
     } else {
+      // In most cases, we can compare scrollWidth to clientWidth to determine if scroll controls should show. However,
+      // Safari appears to calculate this incorrectly when zoomed at 110%, causing the controls to toggle indefinitely.
+      // Adding a single pixel to the comparison seems to resolve it.
+      //
+      // See https://github.com/shoelace-style/shoelace/issues/1839
       this.hasScrollControls =
-        ['top', 'bottom'].includes(this.placement) && this.nav.scrollWidth > this.nav.clientWidth;
+        ['top', 'bottom'].includes(this.placement) && this.nav.scrollWidth > this.nav.clientWidth + 1;
     }
+
+    this.updateScrollButtons();
   }
 
   @watch('placement', { waitUntilFirstUpdate: true })
@@ -387,19 +469,27 @@ export default class SlTabGroup extends ShoelaceElement {
                 <sl-icon-button
                   part="scroll-button scroll-button--start"
                   exportparts="base:scroll-button__base"
-                  class="tab-group__scroll-button tab-group__scroll-button--start"
+                  class=${classMap({
+                    'tab-group__scroll-button': true,
+                    'tab-group__scroll-button--start': true,
+                    'tab-group__scroll-button--start--hidden': this.shouldHideScrollStartButton
+                  })}
                   name=${isRtl ? 'chevron-right' : 'chevron-left'}
                   library="system"
+                  tabindex="-1"
+                  aria-hidden="true"
                   label=${this.localize.term('scrollToStart')}
                   @click=${this.handleScrollToStart}
                 ></sl-icon-button>
               `
             : ''}
 
-          <div class="tab-group__nav">
+          <div class="tab-group__nav" @scrollend=${this.updateScrollButtons}>
             <div part="tabs" class="tab-group__tabs" role="tablist">
               <div part="active-tab-indicator" class="tab-group__indicator"></div>
-              <slot name="nav" @slotchange=${this.syncTabsAndPanels}></slot>
+              <sl-resize-observer @sl-resize=${this.syncIndicator}>
+                <slot name="nav" @slotchange=${this.syncTabsAndPanels}></slot>
+              </sl-resize-observer>
             </div>
           </div>
 
@@ -408,9 +498,15 @@ export default class SlTabGroup extends ShoelaceElement {
                 <sl-icon-button
                   part="scroll-button scroll-button--end"
                   exportparts="base:scroll-button__base"
-                  class="tab-group__scroll-button tab-group__scroll-button--end"
+                  class=${classMap({
+                    'tab-group__scroll-button': true,
+                    'tab-group__scroll-button--end': true,
+                    'tab-group__scroll-button--end--hidden': this.shouldHideScrollEndButton
+                  })}
                   name=${isRtl ? 'chevron-left' : 'chevron-right'}
                   library="system"
+                  tabindex="-1"
+                  aria-hidden="true"
                   label=${this.localize.term('scrollToEnd')}
                   @click=${this.handleScrollToEnd}
                 ></sl-icon-button>

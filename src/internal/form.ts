@@ -72,9 +72,8 @@ export class FormControlController implements ReactiveController {
         const formId = input.form;
 
         if (formId) {
-          const root = input.getRootNode() as Document | ShadowRoot;
-
-          const form = root.getElementById(formId);
+          const root = input.getRootNode() as Document | ShadowRoot | HTMLElement;
+          const form = root.querySelector(`#${formId}`);
 
           if (form) {
             return form as HTMLFormElement;
@@ -217,7 +216,14 @@ export class FormControlController implements ReactiveController {
     // injecting the name/value on a temporary button, so we can just skip them here.
     const isButton = this.host.tagName.toLowerCase() === 'sl-button';
 
-    if (!disabled && !isButton && typeof name === 'string' && name.length > 0 && typeof value !== 'undefined') {
+    if (
+      this.host.isConnected &&
+      !disabled &&
+      !isButton &&
+      typeof name === 'string' &&
+      name.length > 0 &&
+      typeof value !== 'undefined'
+    ) {
       if (Array.isArray(value)) {
         (value as unknown[]).forEach(val => {
           event.formData.append(name, (val as string | number | boolean).toString());

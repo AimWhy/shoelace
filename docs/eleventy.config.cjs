@@ -96,6 +96,12 @@ module.exports = function (eleventyConfig) {
     return shoelaceFlavoredMarkdown.renderInline(content);
   });
 
+  // Trims whitespace and pipes from the start and end of a string. Useful for CEM types, which can be pipe-delimited.
+  // With Prettier 3, this means a leading pipe will exist if the line wraps.
+  eleventyConfig.addFilter('trimPipes', content => {
+    return typeof content === 'string' ? content.replace(/^(\s|\|)/g, '').replace(/(\s|\|)$/g, '') : content;
+  });
+
   eleventyConfig.addFilter('classNameToComponentName', className => {
     let name = capitalCase(className.replace(/^Sl/, ''));
     if (name === 'Qr Code') name = 'QR Code'; // manual override
@@ -109,7 +115,13 @@ module.exports = function (eleventyConfig) {
   //
   // Transforms
   //
-  eleventyConfig.addTransform('html-transform', function (content) {
+  eleventyConfig.addTransform('html-transform', function (rawContent) {
+    let content = replacer(rawContent, [
+      { pattern: '%VERSION%', replacement: customElementsManifest.package.version },
+      { pattern: '%CDNDIR%', replacement: cdndir },
+      { pattern: '%NPMDIR%', replacement: npmdir }
+    ]);
+
     // Parse the template and get a Document object
     const doc = new JSDOM(content, {
       // We must set a default URL so links are parsed with a hostname. Let's use a bogus TLD so we can easily
@@ -134,11 +146,6 @@ module.exports = function (eleventyConfig) {
     scrollingTables(doc);
     copyCodeButtons(doc); // must be after codePreviews + highlightCodeBlocks
     typography(doc, '#content');
-    replacer(doc, [
-      { pattern: '%VERSION%', replacement: customElementsManifest.package.version },
-      { pattern: '%CDNDIR%', replacement: cdndir },
-      { pattern: '%NPMDIR%', replacement: npmdir }
-    ]);
 
     // Serialize the Document object to an HTML string and prepend the doctype
     content = `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;

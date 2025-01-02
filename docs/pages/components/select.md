@@ -233,7 +233,7 @@ import SlOption from '@shoelace-style/shoelace/dist/react/option';
 import SlSelect from '@shoelace-style/shoelace/dist/react/select';
 
 const App = () => (
-  <SlSelect label="Select a Few" value="option-1 option-2 option-3" multiple clearable>
+  <SlSelect label="Select a Few" value={["option-1", "option-2", "option-3"]} multiple clearable>
     <SlOption value="option-1">Option 1</SlOption>
     <SlOption value="option-2">Option 2</SlOption>
     <SlOption value="option-3">Option 3</SlOption>
@@ -269,7 +269,7 @@ import SlOption from '@shoelace-style/shoelace/dist/react/option';
 import SlSelect from '@shoelace-style/shoelace/dist/react/select';
 
 const App = () => (
-  <SlSelect value="option-1 option-2" multiple clearable>
+  <SlSelect value={["option-1", "option-2"]} multiple clearable>
     <SlOption value="option-1">Option 1</SlOption>
     <SlOption value="option-2">Option 2</SlOption>
     <SlOption value="option-3">Option 3</SlOption>
@@ -395,13 +395,14 @@ const App = () => (
 );
 ```
 
-### Prefix Icons
+### Prefix & Suffix
 
-Use the `prefix` slot to prepend an icon to the control.
+Use the `prefix` and `suffix` slots to add presentational icons and text. Avoid slotting in interactive elements, such as buttons, links, etc.
 
 ```html:preview
 <sl-select placeholder="Small" size="small" clearable>
   <sl-icon name="house" slot="prefix"></sl-icon>
+  <sl-badge slot="suffix">New</sl-badge>
   <sl-option value="option-1">Option 1</sl-option>
   <sl-option value="option-2">Option 2</sl-option>
   <sl-option value="option-3">Option 3</sl-option>
@@ -409,6 +410,7 @@ Use the `prefix` slot to prepend an icon to the control.
 <br />
 <sl-select placeholder="Medium" size="medium" clearable>
   <sl-icon name="house" slot="prefix"></sl-icon>
+  <sl-badge slot="suffix">New</sl-badge>
   <sl-option value="option-1">Option 1</sl-option>
   <sl-option value="option-2">Option 2</sl-option>
   <sl-option value="option-3">Option 3</sl-option>
@@ -416,6 +418,7 @@ Use the `prefix` slot to prepend an icon to the control.
 <br />
 <sl-select placeholder="Large" size="large" clearable>
   <sl-icon name="house" slot="prefix"></sl-icon>
+  <sl-badge slot="suffix">New</sl-badge>
   <sl-option value="option-1">Option 1</sl-option>
   <sl-option value="option-2">Option 2</sl-option>
   <sl-option value="option-3">Option 3</sl-option>
@@ -496,6 +499,109 @@ Remember that custom tags are rendered in a shadow root. To style them, you can 
       </sl-tag>
     `;
   };
+</script>
+```
+
+### Lazy loading options
+
+Lazy loading options is very hard to get right. `<sl-select>` largely follows how a native `<select>` works.
+
+Here are the following conditions:
+
+- If a `<sl-select>` is created without any options, but is given a `value` attribute, its `value` will be `""`, and then when options are added, if any of the options have a value equal to the `<sl-select>` value, the value of the `<sl-select>` will equal that of the option.
+
+EX: `<sl-select value="foo">` will have a value of `""` until `<sl-option value="foo">Foo</sl-option>` connects, at which point its value will become `"foo"` when submitting.
+
+- If a `<sl-select multiple>` with an initial value has multiple values, but only some of the options are present, it will only respect the options that are present, and if a selected option is loaded in later, _AND_ the value of the select has not changed via user interaction or direct property assignment, it will add the selected option to the form value and to the `.value` of the select.
+
+This can be hard to conceptualize, so heres a fairly large example showing how lazy loaded options work with `<sl-select>` and `<sl-select multiple>` when given initial value attributes. Feel free to play around with it in a codepen.
+
+```html:preview
+<form id="lazy-options-example">
+  <div>
+    <sl-select name="select-1" value="foo" label="Single select (with existing options)">
+      <sl-option value="bar">Bar</sl-option>
+      <sl-option value="baz">Baz</sl-option>
+    </sl-select>
+    <br>
+    <sl-button type="button">Add "foo" option</sl-button>
+  </div>
+
+  <br>
+
+  <div>
+    <sl-select name="select-2" value="foo" label="Single select (with no existing options)">
+    </sl-select>
+    <br>
+    <sl-button type="button">Add "foo" option</sl-button>
+  </div>
+
+  <br>
+
+  <div>
+    <sl-select name="select-3" value="foo bar baz" multiple label="Multiple Select (with existing options)">
+      <sl-option value="bar">Bar</sl-option>
+      <sl-option value="baz">Baz</sl-option>
+    </sl-select>
+    <br>
+    <sl-button type="button">Add "foo" option</sl-button>
+  </div>
+
+  <br>
+
+  <div>
+    <sl-select name="select-4" value="foo" multiple label="Multiple Select (with no existing options)">
+    </sl-select>
+    <br>
+    <sl-button type="button">Add "foo" option</sl-button>
+  </div>
+
+  <br><br>
+
+  <div style="display: flex; gap: 16px;">
+    <sl-button type="reset">Reset</sl-button>
+    <sl-button type="submit" variant="brand">Show FormData</sl-button>
+  </div>
+
+  <br>
+
+  <pre hidden><code id="lazy-options-example-form-data"></code></pre>
+
+  <br>
+</form>
+
+<script type="module">
+  function addFooOption(e) {
+    const addFooButton = e.target.closest("sl-button[type='button']")
+    if (!addFooButton) {
+      return
+    }
+    const select = addFooButton.parentElement.querySelector("sl-select")
+    if (select.querySelector("sl-option[value='foo']")) {
+      // Foo already exists. no-op.
+      return
+    }
+    const option = document.createElement("sl-option")
+    option.setAttribute("value", "foo")
+    option.innerText = "Foo"
+    select.append(option)
+  }
+  function handleLazySubmit (event) {
+    event.preventDefault()
+    const formData = new FormData(event.target)
+    const codeElement = document.querySelector("#lazy-options-example-form-data")
+    const obj = {}
+    for (const key of formData.keys()) {
+      const val = formData.getAll(key).length > 1 ? formData.getAll(key) : formData.get(key)
+      obj[key] = val
+    }
+    codeElement.textContent = JSON.stringify(obj, null, 2)
+    const preElement = codeElement.parentElement
+    preElement.removeAttribute("hidden")
+  }
+  const container = document.querySelector("#lazy-options-example")
+  container.addEventListener("click", addFooOption)
+  container.addEventListener("submit", handleLazySubmit)
 </script>
 ```
 

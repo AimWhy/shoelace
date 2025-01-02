@@ -1,17 +1,12 @@
 import { css } from 'lit';
-import componentStyles from '../../styles/component.styles.js';
-import formControlStyles from '../../styles/form-control.styles.js';
 
 export default css`
-  ${componentStyles}
-  ${formControlStyles}
-
   :host {
     display: block;
   }
 
   .textarea {
-    display: flex;
+    display: grid;
     align-items: center;
     position: relative;
     width: 100%;
@@ -60,6 +55,17 @@ export default css`
     cursor: not-allowed;
   }
 
+  .textarea__control,
+  .textarea__size-adjuster {
+    grid-area: 1 / 1 / 2 / 2;
+  }
+
+  .textarea__size-adjuster {
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+  }
+
   .textarea--standard.textarea--disabled .textarea__control {
     color: var(--sl-input-color-disabled);
   }
@@ -92,7 +98,6 @@ export default css`
   }
 
   .textarea__control {
-    flex: 1 1 auto;
     font-family: inherit;
     font-size: inherit;
     font-weight: inherit;

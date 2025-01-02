@@ -5,6 +5,7 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import { LocalizeController } from '../../utilities/localize.js';
 import { property, query } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import styles from './split-panel.styles.js';
 import type { CSSResultGroup } from 'lit';
@@ -33,10 +34,12 @@ import type { CSSResultGroup } from 'lit';
  * @cssproperty [--max=100%] - The maximum allowed size of the primary panel.
  */
 export default class SlSplitPanel extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
 
   private cachedPositionInPixels: number;
+  private isCollapsed = false;
   private readonly localize = new LocalizeController(this);
+  private positionBeforeCollapsing = 0;
   private resizeObserver: ResizeObserver;
   private size: number;
 
@@ -84,7 +87,7 @@ export default class SlSplitPanel extends ShoelaceElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.resizeObserver.unobserve(this);
+    this.resizeObserver?.unobserve(this);
   }
 
   private detectSize() {
@@ -158,7 +161,7 @@ export default class SlSplitPanel extends ShoelaceElement {
       return;
     }
 
-    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Enter'].includes(event.key)) {
       let newPosition = this.position;
       const incr = (event.shiftKey ? 10 : 1) * (this.primary === 'end' ? -1 : 1);
 
@@ -180,6 +183,24 @@ export default class SlSplitPanel extends ShoelaceElement {
         newPosition = this.primary === 'end' ? 0 : 100;
       }
 
+      // Collapse/expand the primary panel when enter is pressed
+      if (event.key === 'Enter') {
+        if (this.isCollapsed) {
+          newPosition = this.positionBeforeCollapsing;
+          this.isCollapsed = false;
+        } else {
+          const positionBeforeCollapsing = this.position;
+
+          newPosition = 0;
+
+          // Wait for position to update before setting the collapsed state
+          requestAnimationFrame(() => {
+            this.isCollapsed = true;
+            this.positionBeforeCollapsing = positionBeforeCollapsing;
+          });
+        }
+      }
+
       this.position = clamp(newPosition, 0, 100);
     }
   }
@@ -187,6 +208,14 @@ export default class SlSplitPanel extends ShoelaceElement {
   private handleResize(entries: ResizeObserverEntry[]) {
     const { width, height } = entries[0].contentRect;
     this.size = this.vertical ? height : width;
+
+    // There's some weird logic that gets `this.cachedPositionInPixels = NaN` or `this.position === Infinity` when
+    // a split-panel goes from `display: none;` to showing.
+    if (isNaN(this.cachedPositionInPixels) || this.position === Infinity) {
+      this.cachedPositionInPixels = Number(this.getAttribute('position-in-pixels'));
+      this.positionInPixels = Number(this.getAttribute('position-in-pixels'));
+      this.position = this.pixelsToPercentage(this.positionInPixels);
+    }
 
     // Resize when a primary panel is set
     if (this.primary) {
@@ -197,6 +226,8 @@ export default class SlSplitPanel extends ShoelaceElement {
   @watch('position')
   handlePositionChange() {
     this.cachedPositionInPixels = this.percentageToPixels(this.position);
+    this.isCollapsed = false;
+    this.positionBeforeCollapsing = 0;
     this.positionInPixels = this.percentageToPixels(this.position);
     this.emit('sl-reposition');
   }

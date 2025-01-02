@@ -6,6 +6,7 @@ import { LocalizeController } from '../../utilities/localize.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlIcon from '../icon/icon.component.js';
 import styles from './rating.styles.js';
@@ -32,7 +33,7 @@ import type { CSSResultGroup } from 'lit';
  * @cssproperty --symbol-spacing - The spacing to use around symbols.
  */
 export default class SlRating extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
   static dependencies = { 'sl-icon': SlIcon };
 
   private readonly localize = new LocalizeController(this);
@@ -239,7 +240,7 @@ export default class SlRating extends ShoelaceElement {
         aria-valuenow=${this.value}
         aria-valuemin=${0}
         aria-valuemax=${this.max}
-        tabindex=${this.disabled ? '-1' : '0'}
+        tabindex=${this.disabled || this.readonly ? '-1' : '0'}
         @click=${this.handleClick}
         @keydown=${this.handleKeyDown}
         @mouseenter=${this.handleMouseEnter}
@@ -263,7 +264,6 @@ export default class SlRating extends ShoelaceElement {
                     'rating__symbol--hover': this.isHovering && Math.ceil(displayValue) === index + 1
                   })}
                   role="presentation"
-                  @mouseenter=${this.handleMouseEnter}
                 >
                   <div
                     style=${styleMap({
@@ -296,7 +296,6 @@ export default class SlRating extends ShoelaceElement {
                   'rating__symbol--active': displayValue >= index + 1
                 })}
                 role="presentation"
-                @mouseenter=${this.handleMouseEnter}
               >
                 ${unsafeHTML(this.getSymbol(index + 1))}
               </span>

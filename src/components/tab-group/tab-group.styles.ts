@@ -1,9 +1,6 @@
 import { css } from 'lit';
-import componentStyles from '../../styles/component.styles.js';
 
 export default css`
-  ${componentStyles}
-
   :host {
     --indicator-color: var(--sl-color-primary-600);
     --track-color: var(--sl-color-neutral-200);
@@ -32,6 +29,11 @@ export default css`
   .tab-group--has-scroll-controls .tab-group__nav-container {
     position: relative;
     padding: 0 var(--sl-spacing-x-large);
+  }
+
+  .tab-group--has-scroll-controls .tab-group__scroll-button--start--hidden,
+  .tab-group--has-scroll-controls .tab-group__scroll-button--end--hidden {
+    visibility: hidden;
   }
 
   .tab-group__body {

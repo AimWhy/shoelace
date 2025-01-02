@@ -236,7 +236,7 @@ When a `target` is set, the link will receive `rel="noreferrer noopener"` for [s
 
 ### Setting a Custom Width
 
-As expected, buttons can be given a custom width by setting the `width` attribute. This is useful for making buttons span the full width of their container on smaller screens.
+As expected, buttons can be given a custom width by passing inline styles to the component (or using a class). This is useful for making buttons span the full width of their container on smaller screens.
 
 ```html:preview
 <sl-button variant="default" size="small" style="width: 100%; margin-bottom: 1rem;">Small</sl-button>
@@ -417,7 +417,7 @@ const App = () => (
 
 ### Loading
 
-Use the `loading` attribute to make a button busy. The width will remain the same as before, preventing adjacent elements from moving around. Clicks will be suppressed until the loading state is removed.
+Use the `loading` attribute to make a button busy. The width will remain the same as before, preventing adjacent elements from moving around.
 
 ```html:preview
 <sl-button variant="default" loading>Default</sl-button>

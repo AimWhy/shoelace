@@ -1,9 +1,11 @@
 import { html } from 'lit';
 import { query } from 'lit/decorators.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import styles from './menu.styles.js';
 import type { CSSResultGroup } from 'lit';
 import type SlMenuItem from '../menu-item/menu-item.component.js';
+
 export interface MenuSelectEventDetail {
   item: SlMenuItem;
 }
@@ -19,7 +21,7 @@ export interface MenuSelectEventDetail {
  * @event {{ item: SlMenuItem }} sl-select - Emitted when a menu item is selected.
  */
 export default class SlMenu extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
 
   @query('slot') defaultSlot: HTMLSlotElement;
 
@@ -31,9 +33,16 @@ export default class SlMenu extends ShoelaceElement {
   private handleClick(event: MouseEvent) {
     const menuItemTypes = ['menuitem', 'menuitemcheckbox'];
 
-    const target = event.composedPath().find((el: Element) => menuItemTypes.includes(el?.getAttribute?.('role') || ''));
+    const composedPath = event.composedPath();
+    const target = composedPath.find((el: Element) => menuItemTypes.includes(el?.getAttribute?.('role') || ''));
 
     if (!target) return;
+
+    const closestMenu = composedPath.find((el: Element) => el?.getAttribute?.('role') === 'menu');
+    const clickHasSubmenu = closestMenu !== this;
+
+    // Make sure we're the menu thats supposed to be handling the click event.
+    if (clickHasSubmenu) return;
 
     // This isn't true. But we use it for TypeScript checks below.
     const item = target as SlMenuItem;

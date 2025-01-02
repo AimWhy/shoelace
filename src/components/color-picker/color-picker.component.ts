@@ -2,14 +2,15 @@ import { clamp } from '../../internal/math.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { defaultValue } from '../../internal/default-value.js';
 import { drag } from '../../internal/drag.js';
+import { eventOptions, property, query, state } from 'lit/decorators.js';
 import { FormControlController } from '../../internal/form.js';
 import { html } from 'lit';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { LocalizeController } from '../../utilities/localize.js';
-import { property, query, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { TinyColor } from '@ctrl/tinycolor';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlButton from '../button/button.component.js';
 import SlButtonGroup from '../button-group/button-group.component.js';
@@ -90,7 +91,7 @@ declare const EyeDropper: EyeDropperConstructor;
  * @cssproperty --swatch-size - The size of each predefined color swatch.
  */
 export default class SlColorPicker extends ShoelaceElement implements ShoelaceFormControl {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
 
   static dependencies = {
     'sl-button-group': SlButtonGroup,
@@ -487,6 +488,7 @@ export default class SlColorPicker extends ShoelaceElement implements ShoelaceFo
     this.formControlController.emitInvalidEvent(event);
   }
 
+  @eventOptions({ passive: false })
   private handleTouchMove(event: TouchEvent) {
     event.preventDefault();
   }
@@ -667,7 +669,7 @@ export default class SlColorPicker extends ShoelaceElement implements ShoelaceFo
 
   /** Generates a hex string from HSV values. Hue must be 0-360. All other arguments must be 0-100. */
   private getHexString(hue: number, saturation: number, brightness: number, alpha = 100) {
-    const color = new TinyColor(`hsva(${hue}, ${saturation}, ${brightness}, ${alpha / 100})`);
+    const color = new TinyColor(`hsva(${hue}, ${saturation}%, ${brightness}%, ${alpha / 100})`);
     if (!color.isValid) {
       return '';
     }
@@ -1051,7 +1053,7 @@ export default class SlColorPicker extends ShoelaceElement implements ShoelaceFo
       <sl-dropdown
         class="color-dropdown"
         aria-disabled=${this.disabled ? 'true' : 'false'}
-        .containing-element=${this}
+        .containingElement=${this}
         ?disabled=${this.disabled}
         ?hoist=${this.hoist}
         @sl-after-hide=${this.handleAfterHide}

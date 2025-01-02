@@ -2,6 +2,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { html } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlIcon from '../icon/icon.component.js';
 import styles from './avatar.styles.js';
@@ -15,6 +16,9 @@ import type { CSSResultGroup } from 'lit';
  *
  * @dependency sl-icon
  *
+ * @event sl-error - The image could not be loaded. This may because of an invalid URL, a temporary network condition, or some
+ * unknown cause.
+ *
  * @slot icon - The default icon to use when no image or initials are present. Works best with `<sl-icon>`.
  *
  * @csspart base - The component's base wrapper.
@@ -25,7 +29,7 @@ import type { CSSResultGroup } from 'lit';
  * @cssproperty --size - The size of the avatar.
  */
 export default class SlAvatar extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
   static dependencies = {
     'sl-icon': SlIcon
   };
@@ -53,6 +57,11 @@ export default class SlAvatar extends ShoelaceElement {
     this.hasError = false;
   }
 
+  private handleImageLoadError() {
+    this.hasError = true;
+    this.emit('sl-error');
+  }
+
   render() {
     const avatarWithImage = html`
       <img
@@ -61,7 +70,7 @@ export default class SlAvatar extends ShoelaceElement {
         src="${this.image}"
         loading="${this.loading}"
         alt=""
-        @error="${() => (this.hasError = true)}"
+        @error="${this.handleImageLoadError}"
       />
     `;
 

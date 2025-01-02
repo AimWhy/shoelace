@@ -3,6 +3,7 @@ import { html } from 'lit';
 import { LocalizeController } from '../../utilities/localize.js';
 import { property, query, state } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlIcon from '../icon/icon.component.js';
 import styles from './option.styles.js';
@@ -27,12 +28,13 @@ import type { CSSResultGroup } from 'lit';
  * @csspart suffix - The container that wraps the suffix.
  */
 export default class SlOption extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
   static dependencies = { 'sl-icon': SlIcon };
 
-  private cachedTextLabel: string;
   // @ts-expect-error - Controller is currently unused
   private readonly localize = new LocalizeController(this);
+
+  private isInitialized = false;
 
   @query('.option__label') defaultSlot: HTMLSlotElement;
 
@@ -57,18 +59,16 @@ export default class SlOption extends ShoelaceElement {
   }
 
   private handleDefaultSlotChange() {
-    const textLabel = this.getTextLabel();
-
-    // Ignore the first time the label is set
-    if (typeof this.cachedTextLabel === 'undefined') {
-      this.cachedTextLabel = textLabel;
-      return;
-    }
-
-    // When the label changes, emit a slotchange event so parent controls see it
-    if (textLabel !== this.cachedTextLabel) {
-      this.cachedTextLabel = textLabel;
-      this.emit('slotchange', { bubbles: true, composed: false, cancelable: false });
+    if (this.isInitialized) {
+      // When the label changes, tell the controller to update
+      customElements.whenDefined('sl-select').then(() => {
+        const controller = this.closest('sl-select');
+        if (controller) {
+          controller.handleDefaultSlotChange();
+        }
+      });
+    } else {
+      this.isInitialized = true;
     }
   }
 
@@ -106,7 +106,22 @@ export default class SlOption extends ShoelaceElement {
 
   /** Returns a plain text label based on the option's content. */
   getTextLabel() {
-    return (this.textContent ?? '').trim();
+    const nodes = this.childNodes;
+    let label = '';
+
+    [...nodes].forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (!(node as HTMLElement).hasAttribute('slot')) {
+          label += (node as HTMLElement).textContent;
+        }
+      }
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        label += node.textContent;
+      }
+    });
+
+    return label.trim();
   }
 
   render() {

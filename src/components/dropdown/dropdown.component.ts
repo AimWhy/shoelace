@@ -3,10 +3,12 @@ import { classMap } from 'lit/directives/class-map.js';
 import { getAnimation, setDefaultAnimation } from '../../utilities/animation-registry.js';
 import { getTabbableBoundary } from '../../internal/tabbable.js';
 import { html } from 'lit';
+import { ifDefined } from 'lit/directives/if-defined.js';
 import { LocalizeController } from '../../utilities/localize.js';
 import { property, query } from 'lit/decorators.js';
 import { waitForEvent } from '../../internal/event.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlPopup from '../popup/popup.component.js';
 import styles from './dropdown.styles.js';
@@ -32,7 +34,8 @@ import type SlMenu from '../menu/menu.js';
  * @event sl-hide - Emitted when the dropdown closes.
  * @event sl-after-hide - Emitted after the dropdown closes and all animations are complete.
  *
- * @csspart base - The component's base wrapper.
+ * @csspart base - The component's base wrapper, an `<sl-popup>` element.
+ * @csspart base__popup - The popup's exported `popup` part. Use this to target the tooltip's popup container.
  * @csspart trigger - The container that wraps the trigger.
  * @csspart panel - The panel that gets shown when the dropdown is open.
  *
@@ -40,7 +43,7 @@ import type SlMenu from '../menu/menu.js';
  * @animation dropdown.hide - The animation to use when hiding the dropdown.
  */
 export default class SlDropdown extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
   static dependencies = { 'sl-popup': SlPopup };
 
   @query('.dropdown') popup: SlPopup;
@@ -48,6 +51,7 @@ export default class SlDropdown extends ShoelaceElement {
   @query('.dropdown__panel') panel: HTMLSlotElement;
 
   private readonly localize = new LocalizeController(this);
+  private closeWatcher: CloseWatcher | null;
 
   /**
    * Indicates whether or not the dropdown is open. You can toggle this attribute to show and hide the dropdown, or you
@@ -100,6 +104,11 @@ export default class SlDropdown extends ShoelaceElement {
    */
   @property({ type: Boolean }) hoist = false;
 
+  /**
+   * Syncs the popup width or height to that of the trigger element.
+   */
+  @property({ reflect: true }) sync: 'width' | 'height' | 'both' | undefined = undefined;
+
   connectedCallback() {
     super.connectedCallback();
 
@@ -149,7 +158,7 @@ export default class SlDropdown extends ShoelaceElement {
 
   private handleDocumentKeyDown = (event: KeyboardEvent) => {
     // Close when escape or tab is pressed
-    if (event.key === 'Escape' && this.open) {
+    if (event.key === 'Escape' && this.open && !this.closeWatcher) {
       event.stopPropagation();
       this.focusOnTrigger();
       this.hide();
@@ -334,7 +343,16 @@ export default class SlDropdown extends ShoelaceElement {
 
   addOpenListeners() {
     this.panel.addEventListener('sl-select', this.handlePanelSelect);
-    this.panel.addEventListener('keydown', this.handleKeyDown);
+    if ('CloseWatcher' in window) {
+      this.closeWatcher?.destroy();
+      this.closeWatcher = new CloseWatcher();
+      this.closeWatcher.onclose = () => {
+        this.hide();
+        this.focusOnTrigger();
+      };
+    } else {
+      this.panel.addEventListener('keydown', this.handleKeyDown);
+    }
     document.addEventListener('keydown', this.handleDocumentKeyDown);
     document.addEventListener('mousedown', this.handleDocumentMouseDown);
   }
@@ -346,6 +364,7 @@ export default class SlDropdown extends ShoelaceElement {
     }
     document.removeEventListener('keydown', this.handleDocumentKeyDown);
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
+    this.closeWatcher?.destroy();
   }
 
   @watch('open', { waitUntilFirstUpdate: true })
@@ -388,6 +407,7 @@ export default class SlDropdown extends ShoelaceElement {
     return html`
       <sl-popup
         part="base"
+        exportparts="popup:base__popup"
         id="dropdown"
         placement=${this.placement}
         distance=${this.distance}
@@ -397,6 +417,7 @@ export default class SlDropdown extends ShoelaceElement {
         shift
         auto-size="vertical"
         auto-size-padding="10"
+        sync=${ifDefined(this.sync ? this.sync : undefined)}
         class=${classMap({
           dropdown: true,
           'dropdown--open': this.open

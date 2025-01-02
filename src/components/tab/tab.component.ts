@@ -3,6 +3,7 @@ import { html } from 'lit';
 import { LocalizeController } from '../../utilities/localize.js';
 import { property, query } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlIconButton from '../icon-button/icon-button.component.js';
 import styles from './tab.styles.js';
@@ -27,7 +28,7 @@ let id = 0;
  * @csspart close-button__base - The close button's exported `base` part.
  */
 export default class SlTab extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
   static dependencies = { 'sl-icon-button': SlIconButton };
 
   private readonly localize = new LocalizeController(this);
@@ -44,10 +45,16 @@ export default class SlTab extends ShoelaceElement {
   @property({ type: Boolean, reflect: true }) active = false;
 
   /** Makes the tab closable and shows a close button. */
-  @property({ type: Boolean }) closable = false;
+  @property({ type: Boolean, reflect: true }) closable = false;
 
   /** Disables the tab and prevents selection. */
   @property({ type: Boolean, reflect: true }) disabled = false;
+
+  /**
+   * @internal
+   * Need to wrap in a `@property()` otherwise CustomElement throws a "The result must not have attributes" runtime error.
+   */
+  @property({ type: Number, reflect: true }) tabIndex = 0;
 
   connectedCallback() {
     super.connectedCallback();
@@ -67,16 +74,12 @@ export default class SlTab extends ShoelaceElement {
   @watch('disabled')
   handleDisabledChange() {
     this.setAttribute('aria-disabled', this.disabled ? 'true' : 'false');
-  }
 
-  /** Sets focus to the tab. */
-  focus(options?: FocusOptions) {
-    this.tab.focus(options);
-  }
-
-  /** Removes focus from the tab. */
-  blur() {
-    this.tab.blur();
+    if (this.disabled && !this.active) {
+      this.tabIndex = -1;
+    } else {
+      this.tabIndex = 0;
+    }
   }
 
   render() {
@@ -92,7 +95,6 @@ export default class SlTab extends ShoelaceElement {
           'tab--closable': this.closable,
           'tab--disabled': this.disabled
         })}
-        tabindex=${this.disabled ? '-1' : '0'}
       >
         <slot></slot>
         ${this.closable
