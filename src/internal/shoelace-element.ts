@@ -9,9 +9,9 @@ type EventTypeRequiresDetail<T> = T extends keyof GlobalEventHandlersEventMap
       GlobalEventHandlersEventMap[T] extends CustomEvent<Record<PropertyKey, never>>
       ? never
       : // ...and has at least one non-optional property
-      Partial<GlobalEventHandlersEventMap[T]['detail']> extends GlobalEventHandlersEventMap[T]['detail']
-      ? never
-      : T
+        Partial<GlobalEventHandlersEventMap[T]['detail']> extends GlobalEventHandlersEventMap[T]['detail']
+        ? never
+        : T
     : never
   : never;
 
@@ -21,8 +21,8 @@ type EventTypeDoesNotRequireDetail<T> = T extends keyof GlobalEventHandlersEvent
     ? GlobalEventHandlersEventMap[T] extends CustomEvent<Record<PropertyKey, never>>
       ? T
       : Partial<GlobalEventHandlersEventMap[T]['detail']> extends GlobalEventHandlersEventMap[T]['detail']
-      ? T
-      : never
+        ? T
+        : never
     : T
   : T;
 
@@ -47,8 +47,8 @@ type SlEventInit<T> = T extends keyof GlobalEventHandlersEventMap
     ? GlobalEventHandlersEventMap[T] extends CustomEvent<Record<PropertyKey, never>>
       ? CustomEventInit<GlobalEventHandlersEventMap[T]['detail']>
       : Partial<GlobalEventHandlersEventMap[T]['detail']> extends GlobalEventHandlersEventMap[T]['detail']
-      ? CustomEventInit<GlobalEventHandlersEventMap[T]['detail']>
-      : WithRequired<CustomEventInit<GlobalEventHandlersEventMap[T]['detail']>, 'detail'>
+        ? CustomEventInit<GlobalEventHandlersEventMap[T]['detail']>
+        : WithRequired<CustomEventInit<GlobalEventHandlersEventMap[T]['detail']>, 'detail'>
     : CustomEventInit
   : CustomEventInit;
 
@@ -104,7 +104,15 @@ export default class ShoelaceElement extends LitElement {
       | typeof ShoelaceElement;
 
     if (!currentlyRegisteredConstructor) {
-      customElements.define(name, class extends elementConstructor {} as unknown as CustomElementConstructor, options);
+      // We try to register as the actual class first. If for some reason that fails, we fall back to anonymous classes.
+      // customElements can only have 1 class of the same "object id" per registry, so that is why the try {} catch {} exists.
+      // Some tools like Jest Snapshots and if you import the constructor and call `new SlButton()` they will fail with
+      //   the anonymous class version.
+      try {
+        customElements.define(name, elementConstructor, options);
+      } catch (_err) {
+        customElements.define(name, class extends elementConstructor {}, options);
+      }
       return;
     }
 
@@ -136,6 +144,42 @@ export default class ShoelaceElement extends LitElement {
     super();
     Object.entries((this.constructor as typeof ShoelaceElement).dependencies).forEach(([name, component]) => {
       (this.constructor as typeof ShoelaceElement).define(name, component);
+    });
+  }
+
+  #hasRecordedInitialProperties = false;
+
+  // Store the constructor value of all `static properties = {}`
+  initialReflectedProperties: Map<string, unknown> = new Map();
+
+  attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
+    if (!this.#hasRecordedInitialProperties) {
+      (this.constructor as typeof ShoelaceElement).elementProperties.forEach(
+        (obj, prop: keyof typeof this & string) => {
+          // eslint-disable-next-line
+          if (obj.reflect && this[prop] != null) {
+            this.initialReflectedProperties.set(prop, this[prop]);
+          }
+        }
+      );
+
+      this.#hasRecordedInitialProperties = true;
+    }
+
+    super.attributeChangedCallback(name, oldValue, newValue);
+  }
+
+  protected willUpdate(changedProperties: Parameters<LitElement['willUpdate']>[0]): void {
+    super.willUpdate(changedProperties);
+
+    // Run the morph fixing *after* willUpdate.
+    this.initialReflectedProperties.forEach((value, prop: string & keyof typeof this) => {
+      // If a prop changes to `null`, we assume this happens via an attribute changing to `null`.
+      // eslint-disable-next-line
+      if (changedProperties.has(prop) && this[prop] == null) {
+        // Silly type gymnastics to appease the compiler.
+        (this as Record<string, unknown>)[prop] = value;
+      }
     });
   }
 }

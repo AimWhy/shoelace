@@ -3,6 +3,7 @@ import { html } from 'lit';
 import { LocalizeController } from '../../utilities/localize.js';
 import { property, query } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlTreeItem from '../tree-item/tree-item.component.js';
 import styles from './tree.styles.js';
@@ -70,7 +71,7 @@ function syncCheckboxes(changedTreeItem: SlTreeItem, initialSync = false) {
  * @cssproperty [--indent-guide-width=0] - The width of the indentation line.
  */
 export default class SlTree extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
 
   @query('slot:not([name])') defaultSlot: HTMLSlotElement;
   @query('slot[name=expand-icon]') expandedIconSlot: HTMLSlotElement;
@@ -87,9 +88,9 @@ export default class SlTree extends ShoelaceElement {
   // automatically updated when the underlying document is changed.
   //
   private lastFocusedItem: SlTreeItem | null;
-  private readonly localize = new LocalizeController(this);
   private mutationObserver: MutationObserver;
   private clickTarget: SlTreeItem | null = null;
+  private readonly localize = new LocalizeController(this);
 
   constructor() {
     super();
@@ -112,8 +113,7 @@ export default class SlTree extends ShoelaceElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-
-    this.mutationObserver.disconnect();
+    this.mutationObserver?.disconnect();
   }
 
   // Generates a clone of the expand icon element to use for each tree item
@@ -143,12 +143,16 @@ export default class SlTree extends ShoelaceElement {
       .forEach((status: 'expand' | 'collapse') => {
         const existingIcon = item.querySelector(`[slot="${status}-icon"]`);
 
+        const expandButtonIcon = this.getExpandButtonIcon(status);
+
+        if (!expandButtonIcon) return;
+
         if (existingIcon === null) {
           // No separator exists, add one
-          item.append(this.getExpandButtonIcon(status)!);
+          item.append(expandButtonIcon);
         } else if (existingIcon.hasAttribute('data-default')) {
           // A default separator exists, replace it
-          existingIcon.replaceWith(this.getExpandButtonIcon(status)!);
+          existingIcon.replaceWith(expandButtonIcon);
         } else {
           // The user provided a custom icon, leave it alone
         }

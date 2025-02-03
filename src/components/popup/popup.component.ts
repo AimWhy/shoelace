@@ -1,18 +1,26 @@
 import { arrow, autoUpdate, computePosition, flip, offset, platform, shift, size } from '@floating-ui/dom';
 import { classMap } from 'lit/directives/class-map.js';
 import { html } from 'lit';
+import { LocalizeController } from '../../utilities/localize.js';
 import { offsetParent } from 'composed-offset-position';
 import { property, query } from 'lit/decorators.js';
+import componentStyles from '../../styles/component.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import styles from './popup.styles.js';
 import type { CSSResultGroup } from 'lit';
 
 export interface VirtualElement {
   getBoundingClientRect: () => DOMRect;
+  contextElement?: Element;
 }
 
 function isVirtualElement(e: unknown): e is VirtualElement {
-  return e !== null && typeof e === 'object' && 'getBoundingClientRect' in e;
+  return (
+    e !== null &&
+    typeof e === 'object' &&
+    'getBoundingClientRect' in e &&
+    ('contextElement' in e ? e instanceof Element : true)
+  );
 }
 
 /**
@@ -32,6 +40,7 @@ function isVirtualElement(e: unknown): e is VirtualElement {
  *  assigned dynamically as the popup moves. This is most useful for applying a background color to match the popup, and
  *  maybe a border or box shadow.
  * @csspart popup - The popup's container. Useful for setting a background color, box shadow, etc.
+ * @csspart hover-bridge - The hover bridge element. Only available when the `hover-bridge` option is enabled.
  *
  * @cssproperty [--arrow-size=6px] - The size of the arrow. Note that an arrow won't be shown unless the `arrow`
  *  attribute is used.
@@ -44,10 +53,11 @@ function isVirtualElement(e: unknown): e is VirtualElement {
  *  available when using `auto-size`.
  */
 export default class SlPopup extends ShoelaceElement {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, styles];
 
   private anchorEl: Element | VirtualElement | null;
   private cleanup: ReturnType<typeof autoUpdate> | undefined;
+  private readonly localize = new LocalizeController(this);
 
   /** A reference to the internal popup container. Useful for animating and styling the popup with JavaScript. */
   @query('.popup') popup: HTMLElement;
@@ -189,6 +199,14 @@ export default class SlPopup extends ShoelaceElement {
   /** The amount of padding, in pixels, to exceed before the auto-size behavior will occur. */
   @property({ attribute: 'auto-size-padding', type: Number }) autoSizePadding = 0;
 
+  /**
+   * When a gap exists between the anchor and the popup element, this option will add a "hover bridge" that fills the
+   * gap using an invisible element. This makes listening for events such as `mouseenter` and `mouseleave` more sane
+   * because the pointer never technically leaves the element. The hover bridge will only be drawn when the popover is
+   * active.
+   */
+  @property({ attribute: 'hover-bridge', type: Boolean }) hoverBridge = false;
+
   async connectedCallback() {
     super.connectedCallback();
 
@@ -248,14 +266,14 @@ export default class SlPopup extends ShoelaceElement {
     }
 
     // If the anchor is valid, start it up
-    if (this.anchorEl) {
+    if (this.anchorEl && this.active) {
       this.start();
     }
   }
 
   private start() {
-    // We can't start the positioner without an anchor
-    if (!this.anchorEl) {
+    // We can't start the positioner without an anchor or when the popup is inactive
+    if (!this.anchorEl || !this.active) {
       return;
     }
 
@@ -397,7 +415,7 @@ export default class SlPopup extends ShoelaceElement {
       //
       // Source: https://github.com/floating-ui/floating-ui/blob/cb3b6ab07f95275730d3e6e46c702f8d4908b55c/packages/dom/src/utils/getDocumentRect.ts#L31
       //
-      const isRtl = getComputedStyle(this).direction === 'rtl';
+      const isRtl = this.localize.dir() === 'rtl';
       const staticSide = { top: 'bottom', right: 'left', bottom: 'top', left: 'right' }[placement.split('-')[0]]!;
 
       this.setAttribute('data-current-placement', placement);
@@ -447,12 +465,98 @@ export default class SlPopup extends ShoelaceElement {
       }
     });
 
+    // Wait until the new position is drawn before updating the hover bridge, otherwise it can get out of sync
+    requestAnimationFrame(() => this.updateHoverBridge());
+
     this.emit('sl-reposition');
   }
+
+  private updateHoverBridge = () => {
+    if (this.hoverBridge && this.anchorEl) {
+      const anchorRect = this.anchorEl.getBoundingClientRect();
+      const popupRect = this.popup.getBoundingClientRect();
+      const isVertical = this.placement.includes('top') || this.placement.includes('bottom');
+      let topLeftX = 0;
+      let topLeftY = 0;
+      let topRightX = 0;
+      let topRightY = 0;
+      let bottomLeftX = 0;
+      let bottomLeftY = 0;
+      let bottomRightX = 0;
+      let bottomRightY = 0;
+
+      if (isVertical) {
+        if (anchorRect.top < popupRect.top) {
+          // Anchor is above
+          topLeftX = anchorRect.left;
+          topLeftY = anchorRect.bottom;
+          topRightX = anchorRect.right;
+          topRightY = anchorRect.bottom;
+
+          bottomLeftX = popupRect.left;
+          bottomLeftY = popupRect.top;
+          bottomRightX = popupRect.right;
+          bottomRightY = popupRect.top;
+        } else {
+          // Anchor is below
+          topLeftX = popupRect.left;
+          topLeftY = popupRect.bottom;
+          topRightX = popupRect.right;
+          topRightY = popupRect.bottom;
+
+          bottomLeftX = anchorRect.left;
+          bottomLeftY = anchorRect.top;
+          bottomRightX = anchorRect.right;
+          bottomRightY = anchorRect.top;
+        }
+      } else {
+        if (anchorRect.left < popupRect.left) {
+          // Anchor is on the left
+          topLeftX = anchorRect.right;
+          topLeftY = anchorRect.top;
+          topRightX = popupRect.left;
+          topRightY = popupRect.top;
+
+          bottomLeftX = anchorRect.right;
+          bottomLeftY = anchorRect.bottom;
+          bottomRightX = popupRect.left;
+          bottomRightY = popupRect.bottom;
+        } else {
+          // Anchor is on the right
+          topLeftX = popupRect.right;
+          topLeftY = popupRect.top;
+          topRightX = anchorRect.left;
+          topRightY = anchorRect.top;
+
+          bottomLeftX = popupRect.right;
+          bottomLeftY = popupRect.bottom;
+          bottomRightX = anchorRect.left;
+          bottomRightY = anchorRect.bottom;
+        }
+      }
+
+      this.style.setProperty('--hover-bridge-top-left-x', `${topLeftX}px`);
+      this.style.setProperty('--hover-bridge-top-left-y', `${topLeftY}px`);
+      this.style.setProperty('--hover-bridge-top-right-x', `${topRightX}px`);
+      this.style.setProperty('--hover-bridge-top-right-y', `${topRightY}px`);
+      this.style.setProperty('--hover-bridge-bottom-left-x', `${bottomLeftX}px`);
+      this.style.setProperty('--hover-bridge-bottom-left-y', `${bottomLeftY}px`);
+      this.style.setProperty('--hover-bridge-bottom-right-x', `${bottomRightX}px`);
+      this.style.setProperty('--hover-bridge-bottom-right-y', `${bottomRightY}px`);
+    }
+  };
 
   render() {
     return html`
       <slot name="anchor" @slotchange=${this.handleAnchorChange}></slot>
+
+      <span
+        part="hover-bridge"
+        class=${classMap({
+          'popup-hover-bridge': true,
+          'popup-hover-bridge--visible': this.hoverBridge && this.active
+        })}
+      ></span>
 
       <div
         part="popup"

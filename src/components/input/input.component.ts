@@ -8,6 +8,8 @@ import { live } from 'lit/directives/live.js';
 import { LocalizeController } from '../../utilities/localize.js';
 import { property, query, state } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
+import formControlStyles from '../../styles/form-control.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlIcon from '../icon/icon.component.js';
 import styles from './input.styles.js';
@@ -49,7 +51,7 @@ import type { ShoelaceFormControl } from '../../internal/shoelace-element.js';
  * @csspart suffix - The container that wraps the suffix.
  */
 export default class SlInput extends ShoelaceElement implements ShoelaceFormControl {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, formControlStyles, styles];
   static dependencies = { 'sl-icon': SlIcon };
 
   private readonly formControlController = new FormControlController(this, {
@@ -249,13 +251,16 @@ export default class SlInput extends ShoelaceElement implements ShoelaceFormCont
   }
 
   private handleClearClick(event: MouseEvent) {
-    this.value = '';
-    this.emit('sl-clear');
-    this.emit('sl-input');
-    this.emit('sl-change');
-    this.input.focus();
+    event.preventDefault();
 
-    event.stopPropagation();
+    if (this.value !== '') {
+      this.value = '';
+      this.emit('sl-clear');
+      this.emit('sl-input');
+      this.emit('sl-change');
+    }
+
+    this.input.focus();
   }
 
   private handleFocus() {
@@ -347,10 +352,12 @@ export default class SlInput extends ShoelaceElement implements ShoelaceFormCont
     replacement: string,
     start?: number,
     end?: number,
-    selectMode?: 'select' | 'start' | 'end' | 'preserve'
+    selectMode: 'select' | 'start' | 'end' | 'preserve' = 'preserve'
   ) {
-    // @ts-expect-error - start, end, and selectMode are optional
-    this.input.setRangeText(replacement, start, end, selectMode);
+    const selectionStart = start ?? this.input.selectionStart!;
+    const selectionEnd = end ?? this.input.selectionEnd!;
+
+    this.input.setRangeText(replacement, selectionStart, selectionEnd, selectMode);
 
     if (this.value !== this.input.value) {
       this.value = this.input.value;
@@ -489,14 +496,11 @@ export default class SlInput extends ShoelaceElement implements ShoelaceFormCont
               @blur=${this.handleBlur}
             />
 
-            ${hasClearIcon
+            ${isClearIconVisible
               ? html`
                   <button
                     part="clear-button"
-                    class=${classMap({
-                      input__clear: true,
-                      'input__clear--visible': isClearIconVisible
-                    })}
+                    class="input__clear"
                     type="button"
                     aria-label=${this.localize.term('clearEntry')}
                     @click=${this.handleClearClick}

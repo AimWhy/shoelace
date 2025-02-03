@@ -9,6 +9,8 @@ import { HasSlotController } from '../../internal/slot.js';
 import { html } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
+import formControlStyles from '../../styles/form-control.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import SlButtonGroup from '../button-group/button-group.component.js';
 import styles from './radio-group.styles.js';
@@ -28,6 +30,7 @@ import type SlRadioButton from '../radio-button/radio-button.js';
  * @slot - The default slot where `<sl-radio>` or `<sl-radio-button>` elements are placed.
  * @slot label - The radio group's label. Required for proper accessibility. Alternatively, you can use the `label`
  *  attribute.
+ * @slot help-text - Text that describes how to use the radio group. Alternatively, you can use the `help-text` attribute.
  *
  * @event sl-change - Emitted when the radio group's selected value changes.
  * @event sl-input - Emitted when the radio group receives user input.
@@ -41,7 +44,7 @@ import type SlRadioButton from '../radio-button/radio-button.js';
  * @csspart button-group__base - The button group's `base` part.
  */
 export default class SlRadioGroup extends ShoelaceElement implements ShoelaceFormControl {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, formControlStyles, styles];
   static dependencies = { 'sl-button-group': SlButtonGroup };
 
   protected readonly formControlController = new FormControlController(this);
@@ -130,7 +133,7 @@ export default class SlRadioGroup extends ShoelaceElement implements ShoelaceFor
     const radios = this.getAllRadios();
     const oldValue = this.value;
 
-    if (target.disabled) {
+    if (!target || target.disabled) {
       return;
     }
 
@@ -166,7 +169,7 @@ export default class SlRadioGroup extends ShoelaceElement implements ShoelaceFor
       radio.checked = false;
 
       if (!this.hasButtonGroup) {
-        radio.tabIndex = -1;
+        radio.setAttribute('tabindex', '-1');
       }
     });
 
@@ -174,7 +177,7 @@ export default class SlRadioGroup extends ShoelaceElement implements ShoelaceFor
     radios[index].checked = true;
 
     if (!this.hasButtonGroup) {
-      radios[index].tabIndex = 0;
+      radios[index].setAttribute('tabindex', '0');
       radios[index].focus();
     } else {
       radios[index].shadowRoot!.querySelector('button')!.focus();
@@ -189,14 +192,7 @@ export default class SlRadioGroup extends ShoelaceElement implements ShoelaceFor
   }
 
   private handleLabelClick() {
-    const radios = this.getAllRadios();
-    const checked = radios.find(radio => radio.checked);
-    const radioToFocus = checked || radios[0];
-
-    // Move focus to the checked radio (or the first one if none are checked) when clicking the label
-    if (radioToFocus) {
-      radioToFocus.focus();
-    }
+    this.focus();
   }
 
   private handleInvalid(event: Event) {
@@ -218,15 +214,15 @@ export default class SlRadioGroup extends ShoelaceElement implements ShoelaceFor
 
     this.hasButtonGroup = radios.some(radio => radio.tagName.toLowerCase() === 'sl-radio-button');
 
-    if (!radios.some(radio => radio.checked)) {
+    if (radios.length > 0 && !radios.some(radio => radio.checked)) {
       if (this.hasButtonGroup) {
         const buttonRadio = radios[0].shadowRoot?.querySelector('button');
 
         if (buttonRadio) {
-          buttonRadio.tabIndex = 0;
+          buttonRadio.setAttribute('tabindex', '0');
         }
       } else {
-        radios[0].tabIndex = 0;
+        radios[0].setAttribute('tabindex', '0');
       }
     }
 
@@ -320,6 +316,20 @@ export default class SlRadioGroup extends ShoelaceElement implements ShoelaceFor
     this.errorMessage = message;
     this.validationInput.setCustomValidity(message);
     this.formControlController.updateValidity();
+  }
+
+  /** Sets focus on the radio-group. */
+  public focus(options?: FocusOptions) {
+    const radios = this.getAllRadios();
+    const checked = radios.find(radio => radio.checked);
+    const firstEnabledRadio = radios.find(radio => !radio.disabled);
+    const radioToFocus = checked || firstEnabledRadio;
+
+    // Call focus for the checked radio
+    // If no radio is checked, focus the first one that is not disabled
+    if (radioToFocus) {
+      radioToFocus.focus(options);
+    }
   }
 
   render() {

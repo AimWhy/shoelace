@@ -1,9 +1,6 @@
 import { css } from 'lit';
-import componentStyles from '../../styles/component.styles.js';
 
 export default css`
-  ${componentStyles}
-
   :host {
     --max-width: 20rem;
     --hide-delay: 0ms;
@@ -18,7 +15,6 @@ export default css`
   }
 
   .tooltip::part(popup) {
-    pointer-events: none;
     z-index: var(--sl-z-index-tooltip);
   }
 
@@ -48,6 +44,8 @@ export default css`
     font-size: var(--sl-tooltip-font-size);
     font-weight: var(--sl-tooltip-font-weight);
     line-height: var(--sl-tooltip-line-height);
+    text-align: start;
+    white-space: normal;
     color: var(--sl-tooltip-color);
     padding: var(--sl-tooltip-padding);
     pointer-events: none;

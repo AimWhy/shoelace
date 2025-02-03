@@ -23,6 +23,7 @@ npm install @shoelace-style/shoelace
 Next, [include a theme](/getting-started/themes) and set the [base path](/getting-started/installation#setting-the-base-path) for icons and other assets. In this example, we'll import the light theme and use the CDN as a base path.
 
 ```jsx
+// main.js or main.ts
 import '@shoelace-style/shoelace/dist/themes/light.css';
 import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path';
 
@@ -35,34 +36,21 @@ If you'd rather not use the CDN for assets, you can create a build task that cop
 
 ## Configuration
 
-You'll need to tell Vue to ignore Shoelace components. This is pretty easy because they all start with `sl-`.
-
-```js
-import { fileURLToPath, URL } from 'url';
-
-import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
-
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [
-    vue({
-      template: {
-        compilerOptions: {
-          isCustomElement: tag => tag.startsWith('sl-')
-        }
-      }
-    })
-  ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
-  }
-});
-```
+If you haven't configured your Vue.js project to work with custom elements/web components, follow [the instructions here](https://vuejs.org/guide/extras/web-components.html#using-custom-elements-in-vue) based on your project type to ensure your project will not throw an error when it encounters a custom element.
 
 Now you can start using Shoelace components in your app!
+
+## Types
+
+Once you have configured your application for custom elements, you should be able to use Shoelace in your application without it causing any errors. Unfortunately, this doesn't register the custom elements to behave like components built using Vue. To provide autocomplete information and type safety for your components, you can import the Shoelace Vue types into your `tsconfig.json` to get better integration in your standard Vue and JSX templates.
+
+```json
+{
+  "compilerOptions": {
+    "types": ["@shoelace-style/shoelace/dist/types/vue"]
+  }
+}
+```
 
 ## Usage
 
@@ -112,9 +100,9 @@ When binding complex data such as objects and arrays, use the `.prop` modifier t
 One caveat is there's currently [no support for v-model on custom elements](https://github.com/vuejs/vue/issues/7830), but you can still achieve two-way binding manually.
 
 ```html
-<!-- This doesn't work -->
+<!-- ❌ This doesn't work -->
 <sl-input v-model="name"></sl-input>
-<!-- This works, but it's a bit longer -->
+<!-- ✅ This works, but it's a bit longer -->
 <sl-input :value="name" @input="name = $event.target.value"></sl-input>
 ```
 
@@ -126,7 +114,7 @@ Are you using Shoelace with Vue? [Help us improve this page!](https://github.com
 
 ### Slots
 
-To use Shoelace components with slots, follow the Vue documentation on using [slots with custom elements](https://vuejs.org/guide/extras/web-components.html#building-custom-elements-with-vue).
+Slots in Shoelace/web components are functionally the same as basic slots in Vue. Slots can be assigned to elements using the `slot` attribute followed by the name of the slot it is being assigned to.
 
 Here is an example:
 

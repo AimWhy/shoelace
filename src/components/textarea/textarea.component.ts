@@ -7,6 +7,8 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import { live } from 'lit/directives/live.js';
 import { property, query, state } from 'lit/decorators.js';
 import { watch } from '../../internal/watch.js';
+import componentStyles from '../../styles/component.styles.js';
+import formControlStyles from '../../styles/form-control.styles.js';
 import ShoelaceElement from '../../internal/shoelace-element.js';
 import styles from './textarea.styles.js';
 import type { CSSResultGroup } from 'lit';
@@ -35,7 +37,7 @@ import type { ShoelaceFormControl } from '../../internal/shoelace-element.js';
  * @csspart textarea - The internal `<textarea>` control.
  */
 export default class SlTextarea extends ShoelaceElement implements ShoelaceFormControl {
-  static styles: CSSResultGroup = styles;
+  static styles: CSSResultGroup = [componentStyles, formControlStyles, styles];
 
   private readonly formControlController = new FormControlController(this, {
     assumeInteractionOn: ['sl-blur', 'sl-input']
@@ -44,6 +46,7 @@ export default class SlTextarea extends ShoelaceElement implements ShoelaceFormC
   private resizeObserver: ResizeObserver;
 
   @query('.textarea__control') input: HTMLTextAreaElement;
+  @query('.textarea__size-adjuster') sizeAdjuster: HTMLTextAreaElement;
 
   @state() private hasFocus = false;
   @property() title = ''; // make reactive to pass through
@@ -161,7 +164,9 @@ export default class SlTextarea extends ShoelaceElement implements ShoelaceFormC
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this.resizeObserver.unobserve(this.input);
+    if (this.input) {
+      this.resizeObserver?.unobserve(this.input);
+    }
   }
 
   private handleBlur() {
@@ -192,10 +197,12 @@ export default class SlTextarea extends ShoelaceElement implements ShoelaceFormC
 
   private setTextareaHeight() {
     if (this.resize === 'auto') {
+      // This prevents layout shifts. We use `clientHeight` instead of `scrollHeight` to account for if the `<textarea>` has a max-height set on it. In my tests, this has worked fine. Im not aware of any edge cases. [Konnor]
+      this.sizeAdjuster.style.height = `${this.input.clientHeight}px`;
       this.input.style.height = 'auto';
       this.input.style.height = `${this.input.scrollHeight}px`;
     } else {
-      (this.input.style.height as string | undefined) = undefined;
+      this.input.style.height = '';
     }
   }
 
@@ -260,14 +267,12 @@ export default class SlTextarea extends ShoelaceElement implements ShoelaceFormC
     replacement: string,
     start?: number,
     end?: number,
-    selectMode?: 'select' | 'start' | 'end' | 'preserve'
+    selectMode: 'select' | 'start' | 'end' | 'preserve' = 'preserve'
   ) {
-    // @ts-expect-error - start, end, and selectMode are optional
-    this.input.setRangeText(replacement, start, end, selectMode);
+    const selectionStart = start ?? this.input.selectionStart;
+    const selectionEnd = end ?? this.input.selectionEnd;
 
-    if (this.value !== this.input.value) {
-      this.value = this.input.value;
-    }
+    this.input.setRangeText(replacement, selectionStart, selectionEnd, selectMode);
 
     if (this.value !== this.input.value) {
       this.value = this.input.value;
@@ -368,6 +373,8 @@ export default class SlTextarea extends ShoelaceElement implements ShoelaceFormC
               @focus=${this.handleFocus}
               @blur=${this.handleBlur}
             ></textarea>
+            <!-- This "adjuster" exists to prevent layout shifting. https://github.com/shoelace-style/shoelace/issues/2180 -->
+            <div part="textarea-adjuster" class="textarea__size-adjuster" ?hidden=${this.resize !== 'auto'}></div>
           </div>
         </div>
 
